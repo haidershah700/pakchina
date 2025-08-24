@@ -97,6 +97,10 @@
 </head>
 <body>
   <div class="container" role="main">
+    <section id="submissions" aria-label="Recent submissions" style="display:none">
+      <h2>Recent submissions</h2>
+      <div id="submissions-list"></div>
+    </section>
     <header>
       <a class="brand" href="#" aria-label="Homepage">
         <div class="logo" aria-hidden="true">
@@ -115,15 +119,25 @@
       <h1>We're building something awesome 🚧</h1>
       <p class="lead">Our site is currently under construction. We're crafting a fast, helpful experience—and it's nearly ready. Leave your email and we'll ping you the moment we launch.</p>
 
-      <form action="mailto:hello@example.com" method="post" enctype="text/plain" aria-label="Notify me form">
+      <form id="request-form" action="/api/requests" method="post" enctype="multipart/form-data" aria-label="Product request form">
+        <label class="sr-only" for="name">Name</label>
+        <input id="name" type="text" name="name" placeholder="Your name" required />
         <label class="sr-only" for="email">Email address</label>
-        <input id="email" type="email" name="email" placeholder="Enter your email" required />
-        <button class="btn" type="submit" aria-label="Notify me">
+        <input id="email" type="email" name="email" placeholder="Your email" required />
+        <label class="sr-only" for="phone">Phone</label>
+        <input id="phone" type="tel" name="phone" placeholder="Phone (optional)" />
+        <label class="sr-only" for="whatsapp">WhatsApp</label>
+        <input id="whatsapp" type="tel" name="whatsapp" placeholder="WhatsApp (optional)" />
+        <label class="sr-only" for="productDetails">Product details</label>
+        <textarea id="productDetails" name="productDetails" placeholder="Describe the product you need" rows="3"></textarea>
+        <label class="sr-only" for="images">Upload images</label>
+        <input id="images" type="file" name="images" accept="image/*" multiple />
+        <button class="btn" type="submit" aria-label="Send request">
           <!-- bell icon -->
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 22a2 2 0 0 0 4 0"/><path d="M22 17h-2a4.9 4.9 0 0 1-1.5-3.5V11a6.5 6.5 0 1 0-13 0v2.5A4.9 4.9 0 0 1 4 17H2"/></svg>
-          Notify me
+          Send request
         </button>
-        <a class="btn secondary" href="mailto:hello@example.com">Contact us</a>
+        <div id="form-message" role="status" aria-live="polite"></div>
       </form>
 
       <div class="progress" role="progressbar" aria-valuenow="64" aria-valuemin="0" aria-valuemax="100" aria-label="Build progress">
@@ -161,6 +175,70 @@
   <script>
     // Set current year in footer
     document.getElementById('year').textContent = new Date().getFullYear();
+
+    // Submit form via fetch to /api/requests and render response
+    const form = document.getElementById('request-form');
+    const messageEl = document.getElementById('form-message');
+    const submissionsSection = document.getElementById('submissions');
+    const submissionsList = document.getElementById('submissions-list');
+
+    async function loadSubmissions() {
+      try {
+        const res = await fetch('/api/requests');
+        const data = await res.json();
+        const submissions = data.submissions || [];
+        if (submissions.length === 0) {
+          submissionsSection.style.display = 'none';
+          return;
+        }
+        submissionsSection.style.display = '';
+        submissionsList.innerHTML = submissions
+          .slice()
+          .reverse()
+          .map(s => {
+            const images = (s.images || [])
+              .map(src => `<a href="${src}" target="_blank" rel="noopener">Image</a>`) 
+              .join(' ');
+            return `
+              <div style="border:1px solid var(--border); border-radius:12px; padding:12px; margin:8px 0; background:var(--card)">
+                <div><b>${s.name || ''}</b> — <span style="color:var(--muted)">${new Date(s.createdAt).toLocaleString()}</span></div>
+                <div style="color:var(--muted)">${s.email || ''}${s.phone ? ' · ' + s.phone : ''}${s.whatsapp ? ' · WhatsApp: ' + s.whatsapp : ''}</div>
+                <div>${(s.productDetails || '').replace(/</g,'&lt;')}</div>
+                <div>${images}</div>
+              </div>
+            `;
+          })
+          .join('');
+      } catch (e) {
+        // fail silently in UI
+      }
+    }
+
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!form) return;
+      messageEl.textContent = 'Sending...';
+      const formData = new FormData(form);
+      try {
+        const res = await fetch(form.action, { method: 'POST', body: formData });
+        const json = await res.json();
+        if (json.ok) {
+          messageEl.style.color = 'var(--success)';
+          messageEl.textContent = json.message || 'Sent!';
+          form.reset();
+          await loadSubmissions();
+        } else {
+          messageEl.style.color = 'tomato';
+          messageEl.textContent = json.error || 'Failed to send';
+        }
+      } catch (err) {
+        messageEl.style.color = 'tomato';
+        messageEl.textContent = 'Network error';
+      }
+    });
+
+    // initial load
+    loadSubmissions();
   </script>
 </body>
 </html>
