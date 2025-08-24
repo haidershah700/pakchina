@@ -92,6 +92,12 @@
     .socials{display:flex; gap:10px}
     .icon-btn{display:grid; place-items:center; width:36px; height:36px; border-radius:10px; border:1px solid var(--border); background:var(--card); text-decoration:none}
     .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
+    .submissions{display:grid; gap:12px; margin-top:12px}
+    .submission{padding:14px; border:1px solid var(--border); border-radius:16px; background: var(--card)}
+    .submission h3{margin:0 0 8px 0; font-size:16px}
+    .submission .meta-row{display:flex; gap:14px; flex-wrap:wrap; color:var(--muted); font-size:14px}
+    .submission .images{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px}
+    .submission .images img{width:72px; height:72px; object-fit:cover; border-radius:8px; border:1px solid var(--border)}
     @media (max-width: 520px){ footer{flex-direction:column; align-items:flex-start} }
   </style>
 </head>
@@ -140,6 +146,11 @@
         <a class="btn secondary" href="#" aria-disabled="true">Product Preview</a>
         <a class="btn secondary" href="#" aria-disabled="true">Read Our Story</a>
       </div>
+
+      <div>
+        <button id="loadSubmissions" class="btn secondary" type="button">Load All Submissions</button>
+        <div id="submissions" class="submissions" aria-live="polite"></div>
+      </div>
     </main>
 
     <footer>
@@ -161,6 +172,57 @@
   <script>
     // Set current year in footer
     document.getElementById('year').textContent = new Date().getFullYear();
+
+    async function fetchSubmissions() {
+      const btn = document.getElementById('loadSubmissions');
+      const container = document.getElementById('submissions');
+      if (!btn || !container) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Loading...';
+      container.innerHTML = '';
+      try {
+        const res = await fetch('/api/requests');
+        if (!res.ok) throw new Error('Failed to fetch');
+        const data = await res.json();
+        const list = Array.isArray(data.submissions) ? data.submissions : [];
+        if (list.length === 0) {
+          container.innerHTML = '<div class="submission">No submissions found.</div>';
+        } else {
+          list
+            .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .forEach(item => {
+              const div = document.createElement('div');
+              div.className = 'submission';
+              const images = (item.images || []).map(src => `<a href="${src}" target="_blank" rel="noopener"><img src="${src}" alt="uploaded image"/></a>`).join('');
+              div.innerHTML = `
+                <h3>${item.name || 'Unknown'} <span style="color:var(--muted); font-weight:400">(${new Date(item.createdAt).toLocaleString()})</span></h3>
+                <div class="meta-row">
+                  <span><b>Email:</b> ${item.email || '-'}</span>
+                  <span><b>Phone:</b> ${item.phone || '-'}</span>
+                  <span><b>WhatsApp:</b> ${item.whatsapp || '-'}</span>
+                </div>
+                <div class="meta-row"><b>Details:</b> ${item.productDetails || '-'}</div>
+                <div class="images">${images}</div>
+              `;
+              container.appendChild(div);
+            });
+        }
+      } catch (e) {
+        container.innerHTML = '<div class="submission">Error loading submissions.</div>';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Load All Submissions';
+      }
+    }
+
+    const loadBtn = document.getElementById('loadSubmissions');
+    if (loadBtn) {
+      loadBtn.addEventListener('click', fetchSubmissions);
+    }
+
+    // Auto-load on page load
+    fetchSubmissions();
   </script>
 </body>
 </html>
